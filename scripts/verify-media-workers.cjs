@@ -12,4 +12,27 @@ for(const rate of [8000,16000,24000,48000])for(const extra of [false,true]){cons
 for(const corrupt of [Buffer.alloc(44),wav(24000).subarray(0,45)]){assert.throws(()=>parsePcmWav(corrupt));checks++;}
 const mismatch={originalOneSecondInterpretedAs:24000/16000,candidateOneSecondInterpretedAs:parsePcmWav(wav(24000)).samples.length/24000};
 fs.writeFileSync(path.join(result,'wav-contract.json'),JSON.stringify({success:true,checks,...mismatch},null,2));
-console.log(JSON.stringify({success:true,checks,...mismatch}));
+// Exercise the real compiled worker in a plain worker_threads environment.
+// Loading ConfigService/electron-store here must fail this regression.
+const {Worker}=require('node:worker_threads');
+async function workerReply(addonPath){
+ const worker=new Worker(path.join(result,'imageDecryptWorker.js'),{workerData:{imageNativeAddonPath:addonPath}});
+ try{return await new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>reject(Error('Image worker did not reply')),5000);
+  worker.once('error',error=>{clearTimeout(timer);reject(error);});
+  worker.once('message',reply=>{clearTimeout(timer);resolve(reply);});
+  worker.postMessage({id:31,datPath:'synthetic.dat',xorKey:0});
+ });}finally{await worker.terminate();}
+}
+(async()=>{
+ const addon=path.join(result,'synthetic-addon.cjs');
+ try{
+  fs.writeFileSync(addon,"module.exports={decryptDatNative:()=>({data:Buffer.from([1,2,3,4]),ext:'png',is_wxgf:true,rawSize:4})};");
+  const valid=await workerReply(addon);assert.equal(valid.id,31);assert.equal(valid.ok,true);assert.deepEqual([...new Uint8Array(valid.data)],[1,2,3,4]);assert.equal(valid.ext,'.png');assert.equal(valid.isWxgf,true);checks++;
+  const absent=await workerReply(path.join(result,'absent.node'));assert.equal(absent.id,31);assert.equal(absent.ok,false);assert.equal(absent.addonMissing,true);checks++;
+  fs.writeFileSync(addon,"module.exports={decryptDatNative:()=>{throw Error('synthetic failure')}};");
+  const failed=await workerReply(addon);assert.equal(failed.ok,false);assert.match(failed.error,/synthetic failure/);checks++;
+  fs.writeFileSync(path.join(result,'worker-contract.json'),JSON.stringify({success:true,checks,...mismatch},null,2));
+  console.log(JSON.stringify({success:true,checks,...mismatch}));
+ }finally{fs.rmSync(addon,{force:true});}
+})().catch(error=>{console.error(error);process.exitCode=1;});
