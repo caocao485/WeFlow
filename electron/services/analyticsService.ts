@@ -252,6 +252,11 @@ class AnalyticsService {
   }
 
   private isRowSentByMe(row: Record<string, any>, cleanedAccountId: string): boolean {
+    // The reader already resolves sender identity from the selected account.
+    // An explicit 0 must not be overridden by account-directory heuristics.
+    const computed = row.computed_is_send
+    if (computed === 0 || computed === false || computed === '0' || computed === 'false') return false
+    if (computed === 1 || computed === true || computed === '1' || computed === 'true') return true
     const isSendRaw = row.computed_is_send ?? row.is_send ?? row.isSend ?? row.WCDB_CT_is_send
     const normalized = String(isSendRaw).trim().toLowerCase()
     let isSend = isSendRaw === 1 || isSendRaw === true || normalized === '1' || normalized === 'true'
