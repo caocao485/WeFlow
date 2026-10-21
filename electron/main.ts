@@ -5024,7 +5024,8 @@ function registerIpcHandlers() {
     return annualReportService.getAvailableYears({
       dbPath: cfg.get('dbPath'),
       decryptKey: cfg.get('decryptKey'),
-      accountId: cfg.getMyAccountIdCleaned()
+      accountId: cfg.getMyAccountIdCleaned(),
+      systemAccountId: cfg.get('systemAccountId')
     })
   })
 
@@ -5120,6 +5121,7 @@ function registerIpcHandlers() {
           dbPath,
           decryptKey,
           accountId,
+          systemAccountId: cfg.get('systemAccountId'),
           onProgress: (progress) => {
             if (isYearsLoadCanceled(taskId)) return
             const snapshot = updateTaskSnapshot({
@@ -5233,7 +5235,7 @@ function registerIpcHandlers() {
 
     return await new Promise((resolve) => {
       const worker = new Worker(workerPath, {
-        workerData: { year, dbPath, decryptKey, myAccountId: accountId, resourcesPath, userDataPath, logEnabled, wcdbLibPath: cfg.get('wcdbLibPath') }
+        workerData: { year, dbPath, decryptKey, myAccountId: accountId, systemAccountId: cfg.get('systemAccountId'), resourcesPath, userDataPath, logEnabled, wcdbLibPath: cfg.get('wcdbLibPath') }
       })
 
       const cleanup = () => {

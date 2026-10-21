@@ -1,7 +1,6 @@
 import { parentPort } from 'worker_threads'
 import { wcdbService } from './wcdbService'
 import { resolveAccountDir } from './accountDirResolver'
-import { ConfigService } from './config'
 
 export interface TopContact {
   username: string
@@ -170,7 +169,7 @@ class AnnualReportService {
     return { success: true, cleanedAccountId, rawAccountId: accountId }
   }
 
-  private async getPrivateSessions(cleanedAccountId: string): Promise<string[]> {
+  private async getPrivateSessions(cleanedAccountId: string, systemAccountId?: string): Promise<string[]> {
     const sessionResult = await wcdbService.getSessions()
     if (!sessionResult.success || !sessionResult.sessions) return []
     const rows = sessionResult.sessions as Record<string, any>[]
@@ -183,6 +182,7 @@ class AnnualReportService {
       '@helper_folders', '@placeholder_foldgroup'
     ]
 
+    const excludedAccountId = String(systemAccountId || '').trim().toLowerCase()
     return rows
       .map((row) => row.username || row.user_name || row.userName || '')
       .filter((username) => {
@@ -191,8 +191,7 @@ class AnnualReportService {
         if (username === 'filehelper') return false
         if (username.startsWith('gh_')) return false
         if (username.toLowerCase() === cleanedAccountId.toLowerCase()) return false
-        const systemAccountId = String(new ConfigService().get('systemAccountId') || '').trim().toLowerCase()
-        if (systemAccountId && username.toLowerCase() === systemAccountId) return false
+        if (excludedAccountId && username.toLowerCase() === excludedAccountId) return false
 
         for (const prefix of excludeList) {
           if (username.startsWith(prefix) || username === prefix) return false
@@ -629,6 +628,7 @@ class AnnualReportService {
     dbPath: string
     decryptKey: string
     accountId: string
+    systemAccountId?: string
     onProgress?: (payload: AvailableYearsLoadProgress) => void
     shouldCancel?: () => boolean
     nativeTimeoutMs?: number
@@ -698,7 +698,7 @@ class AnnualReportService {
         }
       }
 
-      const sessionIds = await this.getPrivateSessions(conn.cleanedAccountId)
+      const sessionIds = await this.getPrivateSessions(conn.cleanedAccountId, params.systemAccountId)
       if (sessionIds.length === 0) {
         return { success: false, error: '未找到消息会话', meta: buildMeta('hybrid', '未找到消息会话') }
       }
@@ -851,6 +851,7 @@ class AnnualReportService {
   async generateReportWithConfig(params: {
     year: number
     accountId: string
+    systemAccountId?: string
     dbPath: string
     decryptKey: string
     onProgress?: (status: string, progress: number) => void
@@ -863,7 +864,7 @@ class AnnualReportService {
 
       const cleanedAccountId = conn.cleanedAccountId
       const rawAccountId = conn.rawAccountId
-      const sessionIds = await this.getPrivateSessions(cleanedAccountId)
+      const sessionIds = await this.getPrivateSessions(cleanedAccountId, params.systemAccountId)
       if (sessionIds.length === 0) {
         return { success: false, error: '未找到消息会话' }
       }

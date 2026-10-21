@@ -7,6 +7,7 @@ interface WorkerConfig {
   dbPath: string
   decryptKey: string
   myAccountId: string
+  systemAccountId?: string
   resourcesPath?: string
   userDataPath?: string
   logEnabled?: boolean
@@ -29,6 +30,7 @@ async function run() {
     dbPath: config.dbPath,
     decryptKey: config.decryptKey,
     accountId: config.myAccountId,
+    systemAccountId: config.systemAccountId,
     onProgress: (status: string, progress: number) => {
       parentPort?.postMessage({
         type: 'annualReport:progress',
